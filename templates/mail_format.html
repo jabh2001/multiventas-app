@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmación de Correo Electrónico</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        p {
+            color: #666;
+        }
+
+        .display-code {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .display-warning {
+            font-size: .8rem;
+            margin-top: -20px;
+            color: #999;
+        }
+        .center{
+            display: grid;
+            justify-content: center;
+            align-content: center;
+        }
+        .mail-title{
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mail-title">Confirmación de Correo Electrónico para {{ email }}</h1>
+        <p>Hola, ¡Gracias por registrarte! Para completar el proceso de registro, por favor ingresa el siguiente código:</p>
+        <div class="center">
+            <p class="display-code">{{ code }}</p>
+        </div>
+        <div class="center display-warning">
+            <p>Este código tiene una duracion de 5 minutos</p>
+        </div>
+        <p>Si no has solicitado este registro, puedes ignorar este correo.</p>
+        <p>Gracias,<br> Multiventas.vip</p>
+    </div>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificación de Cambio de Datos</title>
+    <style>
+        body {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-family: Arial, sans-serif;
+        }
+
+        .verification-code {
+            background-color: #007BFF;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 18px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <h2>Verificación de Cambio de Datos</h2>
+        <p>Hola {{ username }},</p>
+        <p>Recibimos una solicitud para cambiar los datos de tu perfil en nuestra plataforma. Para completar este proceso, por favor ingresa el siguiente código de verificación:</p>
+        
+        <p class="verification-code">{{ code }}</p>
+        
+        <p>Este código es válido por 5 minutos. Por favor, no compartas este código con nadie por razones de seguridad.</p>
+        
+        <p>Si no realizaste esta solicitud o tienes alguna pregunta, por favor contáctanos inmediatamente.</p>
+        
+        <p>Gracias,</p>
+        <p><b>Multiventas.vip</b><p>
+    </div>
+</body>
+</html>
