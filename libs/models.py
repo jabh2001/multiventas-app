@@ -72,7 +72,7 @@ class User(db.Model):
     country = db.Column(db.String(10), default="ve")
     main_money = db.Column(db.String(10), default="bs")
 
-# ALTER TABLE user ADD COLUMN is_valid_email bool not null default false;
+    # ALTER TABLE user ADD COLUMN is_valid_email bool not null default false;
     is_valid_email = db.Column(db.Boolean, default=False)
 
     _parent = None 
@@ -95,6 +95,10 @@ class User(db.Model):
     
     google_data = db.relationship("GoogleData", backref=db.backref("user"), uselist=False)
     platinum_membership = db.relationship("PlatinumMembers", backref=db.backref("user"), uselist=False)
+
+    
+    prize_wallet = db.relationship("PrizeWallet", backref="user", uselist=False)
+    prize_history = db.relationship("PrizeHistory", backref="user", uselist=False)
 
     def save_me(self):
         db.session.add(self)
@@ -150,6 +154,15 @@ class Config(db.Model):
     def save_me(self):
         db.session.add(self)
         db.session.commit()
+    
+    @staticmethod
+    def get_points():
+        config = Config.query.filter(Config.name == 'points').first()
+        if not config:
+            config = Config(name='points', options = { "price":1000 })
+            config.save_me()
+        return config
+
 
 
 class ExchangeRate(db.Model):
@@ -700,6 +713,7 @@ class Platform(db.Model):
     year_afiliated_price = db.Column(db.Float)
     year_reference_reward = db.Column(db.Float)
     file_name = db.Column(db.String(255))
+    public = db.Column(db.Boolean, default=True)
 
     accounts = db.relationship("StreamingAccount", backref="platform")
     complete_account_requests = db.relationship("CompleteAccountRequest", backref="platform")
@@ -763,6 +777,7 @@ class Platform(db.Model):
                     screen_count_subquery.c.screens_count == max_screens_subquery.c.max_screens_count
                 )
             )
+            .filter(Platform.public == 1)
             .order_by(Platform.id)
         )
         return query
@@ -1160,6 +1175,60 @@ class AfiliationGiftCode(db.Model):
     receiver_id = db.Column(db.Integer, db.ForeignKey('user.id') )
     code = db.Column(db.String(20), unique=True, nullable=False)
     type = db.Column(db.String(255), nullable=False)
+
+################################################################################################################################################################################################################################################################
+
+class CreditsTitaniumPrice(db.Model):
+    __tablename__ = "credits_titanium_price"
+    id = db.Column(db.Integer, primary_key=True)
+    amount = db.Column(db.Integer, nullable=False, default=1)
+    price = db.Column(db.Float, nullable=False, default=0)
+    order = db.Column(db.Integer, nullable=False, default=1)
+
+class CreditsVipPrice(db.Model):
+    __tablename__ = "credits_vip_price"
+    id = db.Column(db.Integer, primary_key=True)
+    amount = db.Column(db.Integer, nullable=False, default=1)
+    price = db.Column(db.Float, nullable=False, default=0)
+    order = db.Column(db.Integer, nullable=False, default=1)
+    
+class Prize(db.Model):
+    __tablename__ = "prize"
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255))
+    description = db.Column(db.String(255))
+    img_url = db.Column(db.String(255))
+    points = db.Column(db.Integer)
+    public = db.Column(db.Boolean, default=True)
+    history = db.relationship('PrizeHistory', backref='prize')
+    
+    def img_path(self):
+        import os
+        from flask import request
+        return os.path.join(request.host_url, f'assets/img/{self.img_url}/')
+
+class PrizeWallet(db.Model):
+    __tablename__ = "prize_wallet"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey(User.id))
+    points = db.Column(db.Integer, nullable=False, default=0)
+    history = db.relationship('PrizeWalletHistory', backref='prize_wallet')
+
+class PrizeHistory(db.Model):
+    __tablename__ = "prize_history"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey(User.id))
+    prize_id = db.Column(db.Integer, db.ForeignKey(Prize.id))
+    points = db.Column(db.Integer)
+    status = db.Column(db.Integer, nullable=False, default=0)
+    timestamp = db.Column(db.DateTime, server_default=db.func.now())
+
+class PrizeWalletHistory(db.Model):
+    __tablename__ = "prize_wallet_history"
+    id = db.Column(db.Integer, primary_key=True)
+    wallet_id = db.Column(db.Integer, db.ForeignKey(PrizeWallet.id))
+    points = db.Column(db.Integer)
+    date = db.Column(db.Date, default=dateV.datetime_now)
 
 def init_DB(app):
     db.init_app(app=app)

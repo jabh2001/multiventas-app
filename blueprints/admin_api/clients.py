@@ -1,8 +1,8 @@
 from flask import Blueprint, request, Response
 from flask_jwt_extended import jwt_required, current_user
 from marshmallow import ValidationError
-from libs.models import User, Wallet, RechargeRequest, BuyHistory, db
-from libs.schemas import UserSchema, WalletSchema, BuyHistorySchema, GoogleDataSchema
+from libs.models import User, Wallet, RechargeRequest, BuyHistory, PrizeWallet, PrizeWalletHistory, db
+from libs.schemas import UserSchema, WalletSchema, BuyHistorySchema, GoogleDataSchema, PrizeWalletSchema, PrizeWalletHistorySchema
 from services.general_service import convert_str_to_int
 from services.admin_service.clients_services import wsphone
 from services.admin_service.clients_services import convert_clientlist_to_xlsx
@@ -27,8 +27,15 @@ def user_(user_id = None):
         user, wallet = db.session.query(User, Wallet).join(User.wallet).filter(User.id == user_id).first()
         user_schema = UserSchema(exclude=("access_token",))
         wallet_schema = WalletSchema()
+        prize_wallet_schema = PrizeWalletSchema()
         buy_history_schema = BuyHistorySchema(many=True)
         google_data_schema = GoogleDataSchema()
+        prize_wallet_history_schema = PrizeWalletHistorySchema(many=True)
+        if not user.prize_wallet:
+            user.prize_wallet = PrizeWallet(points=0)
+            db.session.add(user.prize_wallet)
+            db.session.commit()
+            
         if request.method == "PUT":
             try:
                 msg = "No se ha hecho nada"
@@ -44,9 +51,9 @@ def user_(user_id = None):
                             new_data[key] = value
                     if new_data:
                         user_schema.load(new_data, instance=user, partial=True)
-                        msg="Se ha actualizado la informacion del usuario"
+                        msg="Se ha actualizado la información del usuario"
                     else:
-                        msg="No ha cambiado la informacion del usuario"
+                        msg="No ha cambiado la información del usuario"
 
                 if request.args.get("edit") == "wallet":
                     for key,value in copy_data.items():
@@ -54,9 +61,9 @@ def user_(user_id = None):
                             new_data[key] = value
                     if new_data:
                         wallet_schema.load(new_data, instance=wallet, partial=True)
-                        msg="Se ha actualizado la informacion de la billetera"
+                        msg="Se ha actualizado la información de la billetera"
                     else:
-                        msg="No ha cambiado la informacion del usuario"
+                        msg="No ha cambiado la información del usuario"
                 
                 if "edit" in request.args:
                     db.session.commit()
@@ -76,6 +83,8 @@ def user_(user_id = None):
             "wallet":wallet_schema.dump(wallet),
             "buy_history":buy_history_schema.dump(user.buy_historys),
             "google_data":google_data_schema.dump(user.google_data),
+            "prize_wallet":prize_wallet_schema.dump(user.prize_wallet),
+            "prize_wallet_history":prize_wallet_history_schema.dump(user.prize_wallet.history),
         }
     else:
         if request.method == "POST":
@@ -175,6 +184,27 @@ def user_(user_id = None):
                 "last_recharge":last_recharge,
             } for user, last_recharge in query]
         }
+
+@clients_bp.route("/user/<user_id>/prize-wallet/", methods=["PUT"])
+@clients_bp.route("/users/<user_id>/prize-wallet/", methods=["PUT"])
+@jwt_required()
+def edit_prize_wallet(user_id = None):
+    try:
+        print("Hola mundo")
+        prize_wallet = PrizeWallet.query.filter(PrizeWallet.user_id == user_id).first()
+        if prize_wallet:
+            prize_wallet.points = request.json.get("points")
+            db.session.commit()
+            return {
+                "status":True,
+                "msg":"Se han actualizado los puntos",
+            }
+    except Exception as e:
+        return {
+            "status":False,
+            "msg": f"Error al crear el usuario {str(e)}"
+        }
+
 """
 
 SELECT user.*, COUNT(buy_history.user_id) compras FROM user 

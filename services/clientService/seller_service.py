@@ -1,7 +1,7 @@
 from libs.models import Afiliated, PlatinumMembers, BuyHistory, Wallet, User, AfiliationGiftCode, db
 from datetime import timedelta, date
 from services.random_password import generate_password
-from services.general_service import create_affiliation_gift_code
+from services.general_service import create_affiliation_gift_code, create_affiliations_gift_code
 
 def afiliar(user:User, wallet:Wallet, price:float, reference_reward:float, hoy:date=None):
         wallet.add_amount(-price, user.main_money)
@@ -104,7 +104,7 @@ def afiliar_platinum_with_code(user:User, gift_code:AfiliationGiftCode, hoy=None
         raise Exception("El dueño de un código no puede usarlo")
     if gift_code.receiver_id != None:
         raise Exception("Este código ya ha sido usado")
-    if gift_code.type != "platinum":
+    if "titanium" != gift_code.type != "platinum":
         raise Exception("Este código es para otro tipo de afiliacion")
     gift_code.receiver_id = user.id
 
@@ -130,6 +130,7 @@ def afiliar_platinum_with_code(user:User, gift_code:AfiliationGiftCode, hoy=None
     
     return msg
 
+
 def buy_affiliation_gift_code(user:User, wallet:Wallet, price, type):
     all_gift_codes = AfiliationGiftCode.query.all()
     code = create_affiliation_gift_code(all_gift_codes)
@@ -139,3 +140,12 @@ def buy_affiliation_gift_code(user:User, wallet:Wallet, price, type):
     db.session.add(gift_code)
     db.session.commit()
     return gift_code
+
+def generate_gift_code(user:User, amount, type):
+    all_gift_codes = AfiliationGiftCode.query.all()
+    codes = create_affiliations_gift_code(all_gift_codes, amount=amount)
+    gift_codes = [AfiliationGiftCode(owner_id=user.id, code=code, type=type) for code in codes]
+    
+    db.session.add_all(gift_codes)
+    db.session.commit()
+    return gift_codes

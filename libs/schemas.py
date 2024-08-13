@@ -233,6 +233,33 @@ class AfiliationGiftCodeSchema(ma.SQLAlchemyAutoSchema):
     class Meta(BaseMeta):
         model = AfiliationGiftCode
 
+
+class CreditsTitaniumPriceSchema(ma.SQLAlchemyAutoSchema):
+    class Meta(BaseMeta):
+        model = CreditsTitaniumPrice
+
+class CreditsVipPriceSchema(ma.SQLAlchemyAutoSchema):
+    class Meta(BaseMeta):
+        model = CreditsVipPrice
+
+class PrizeSchema(ma.SQLAlchemyAutoSchema):
+    class Meta(BaseMeta):
+        model = Prize
+    img_path = fields.Function(lambda prize: f"{prize.img_path()}")
+
+class PrizeWalletSchema(ma.SQLAlchemyAutoSchema):
+    class Meta(BaseMeta):
+        model = PrizeWallet
+    user = Nested("UserSchema", only=("id", "username", "email"))
+
+class PrizeHistorySchema(ma.SQLAlchemyAutoSchema):
+    class Meta(BaseMeta):
+        model = PrizeHistory
+
+class PrizeWalletHistorySchema(ma.SQLAlchemyAutoSchema):
+    class Meta(BaseMeta):
+        model = PrizeWalletHistory
+
 def init_schemas(app):
     ma.init_app(app=app)
     return ma

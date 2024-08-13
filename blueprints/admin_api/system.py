@@ -5,6 +5,7 @@ from libs.schemas import CategorySchema, ProductsForCategorySchema, CouponSchema
 from services.admin_service.system_services import update_product_category
 from services.admin_service.system_services import get_coupons
 from services.admin_service.system_services import create_google_drive_product
+from services.admin_service.system_services import edit_google_drive_product
 from services.admin_service.system_services import create_lottery_tickets_to_xlsx
 from services.general_service import convert_str_to_int, save_file, delete_file, create_affiliation_gift_code
 import requests
@@ -517,17 +518,21 @@ def platinum_products(product_id=None):
     if product_id:
         google_drive_product = GoogleDriveProduct.query.get(product_id)
         try:
+            msg = ""
             if not google_drive_product:
                 raise Exception("Producto no encontrado")
             if request.method == "PUT":
-                pass
+                edit_google_drive_product(google_drive_product, request.form, request.files.get("img"))
+                msg = "Se ha actualizado el producto correctamente"
+                db.session.commit()
             if request.method == "DELETE":
-                msg = "" if delete_file(google_drive_product.file_path) else "Ha habido un error al eliminar la imagen. "
+                msg = "Se ha eliminado el producto correctamente" if delete_file(google_drive_product.file_path) else "Ha habido un error al eliminar la imagen. "
                 db.session.delete(google_drive_product)
                 db.session.commit()
             return { 
                 "status":True,
-                "msg":"Se ha eliminado el producto correctamente",
+                "msg":msg,
+                "product":google_drive_product_schema.dump(google_drive_product),
             }
         except Exception as e: 
             return { 
@@ -702,7 +707,7 @@ def affiliation_gift_code():
                 owner = current_user
                 owner_id = current_user.id
             code = create_affiliation_gift_code(AfiliationGiftCode.query.all())
-            gift_code = AfiliationGiftCode(owner_id=owner_id, code=code, type=type)
+            gift_code = AfiliationGiftCode(owner_id=owner_id, code=code, type=type if type == "vip" else "titanium")
             
             db.session.add(gift_code)
             db.session.commit()

@@ -1,12 +1,13 @@
-from flask import Blueprint, request, render_template, g
-from flask_jwt_extended import jwt_required, current_user
+from flask import Blueprint, request, render_template, jsonify, g
+from flask_jwt_extended import jwt_required, current_user, create_access_token, set_access_cookies, unset_jwt_cookies
 from flask_mail import Message
 from marshmallow import ValidationError
-from libs.models import User, Wallet, Notifications, DocumentRequest, EmailCode, GoogleData, db, dateV
+from libs.models import User, Wallet, Notifications, DocumentRequest, EmailCode, GoogleData, db, dateV, PrizeWallet
 from libs.schemas import UserSchema, WalletSchema, NotificationsSchema
 from libs.mail import mail
 from services.responsesService import ErrorResponse, SuccessResponse
 from services.clientService.auth_service import verify_user
+from services.clientService.profile_service import dict_of_user_data
 from services.general_service import save_document, generate_standar_code
 
 auth_bp = Blueprint('auth_bp', __name__)
@@ -21,11 +22,44 @@ def signin():
         user = verify_user(email, password, google_id, withgoogle = "withgoogle" in request.args)
         if not user:
             return {"msg": "Correo o contraseña invalida"}, 401
+        if not user.wallet:
+            user.wallet = Wallet()
+            db.session.add(user.wallet)
+        if not user.prize_wallet:
+            user.prize_wallet = PrizeWallet()
+            db.session.add(user.prize_wallet)
+        db.session.commit()
         user_schema = UserSchema(exclude=("password", "parent_id"))
         return user_schema.dump(user)
     except Exception as e:
         return {"msg": str(e)}, 400
+@auth_bp.post('/sign-out/')
+def sign_out():
+    try:
+        response = jsonify({"msg": "logout successful"})
+        unset_jwt_cookies(response)
+        return response
+    except Exception as e:
+        return {"msg": str(e)}, 400
 
+@auth_bp.post('/v2/sign-in/')
+def v2_sign_in():
+    try:
+        email = request.json.get("email", None)
+        password = request.json.get("password", None)
+        google_id = request.json.get("google_id", None)
+        user = verify_user(email, password, google_id, withgoogle = "withgoogle" in request.args)
+        if not user:
+            return {"msg": "Correo o contraseña invalida"}, 401
+
+        response = jsonify(dict_of_user_data(user))
+
+        token = create_access_token(user)
+        set_access_cookies(response, token,)
+        return response
+    except Exception as e:
+        raise e
+        return {"msg": str(e)}, 400
 
 @auth_bp.post('/signup/')
 def signup():
@@ -60,11 +94,11 @@ def signup():
                 google_id=request.json["googleId"],
                 is_google_register=True,
             )
-        else:
-            email_code_instance = EmailCode.query.filter(EmailCode.email==email).first()
-            if not email_code_instance:
-                raise Exception("El código de confirmación es incorrecto")
-            email_code_instance.verify_validation(code=confirm_email_code, now=g.now)
+        # else:
+        #     email_code_instance = EmailCode.query.filter(EmailCode.email==email).first()
+        #     if not email_code_instance:
+        #         raise Exception("El código de confirmación es incorrecto")
+        #     email_code_instance.verify_validation(code=confirm_email_code, now=g.now)
         
         user = user_schema.load(data)
         user.is_valid_email = True
@@ -81,6 +115,71 @@ def signup():
             "status":True,
             "user": user_schema.dump(user)
         }
+    except ValidationError as ve:
+        error_msg = []
+        for field, errors in ve.messages.items():
+            field_name = fields_names[field]
+            for e in errors:
+                error_msg.append(f"{field_name} - {e}")
+        return ErrorResponse(400, "Datos invalidos", errors = error_msg)
+    except Exception as e:
+        return ErrorResponse("Ha ocurrido un error: " + str(e), error=str(e), errors=[str(e)])
+
+@auth_bp.post('/v2/sign-up/')
+def sign_up_v2():
+    try:
+        user_schema = UserSchema()
+        username = request.json.get("name", None)
+        email = request.json.get("email", None)
+        password = request.json.get("password", None)
+        phone = request.json.get("phone", None)
+        parent_id = request.json.get("parent_id", None)
+        confirm_email_code = request.json.get("confirm_email_code", None)
+        data = {
+            "username": username,
+            "email": email,
+            "password": password,
+            "phone": phone[1:] if phone else None,
+            "user_type": "client"
+        }
+        if parent_id:
+            data["parent_id"] = parent_id
+
+        saved_google_data = None
+        if "withgoogle" in request.args:
+            data["password"] = request.json["googleId"]
+            other_google_data = GoogleData.query.filter(GoogleData.email == request.json["email"]).first()
+            if other_google_data:
+                raise Exception("Ese cuenta de google ya se encuentra registrada")
+
+            saved_google_data = GoogleData(
+                email=request.json["email"],
+                image_url=request.json["imageUrl"],
+                google_id=request.json["googleId"],
+                is_google_register=True,
+            )
+        # else:
+        #     email_code_instance = EmailCode.query.filter(EmailCode.email==email).first()
+        #     if not email_code_instance:
+        #         raise Exception("El código de confirmación es incorrecto")
+        #     email_code_instance.verify_validation(code=confirm_email_code, now=g.now)
+        
+        user = user_schema.load(data)
+        user.is_valid_email = True
+        user.save_me()
+
+        wallet = Wallet(user_id=user.id)
+        if saved_google_data:
+            saved_google_data.user = user
+            db.session.add(saved_google_data)
+
+        wallet.save_me()
+
+        response = jsonify({**dict_of_user_data(user), "status":True })
+
+        token = create_access_token(user)
+        set_access_cookies(response, token,)
+        return response
     except ValidationError as ve:
         error_msg = []
         for field, errors in ve.messages.items():

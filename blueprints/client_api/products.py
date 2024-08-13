@@ -1,6 +1,7 @@
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify, g, Response
 from libs.models import Platform, StreamingAccount, ProductsByRequest, User, Coupon, Category, ProductCategories, BuyHistory, RequestUserMoney, GoogleDriveCategories, GoogleDriveProduct
 from libs.schemas import PlatformSchema, StreamingAccountSchema, ScreenSchema, CategorySchema, GoogleDriveCategoriesSchema, GoogleDriveProductSchema
+from libs.cache import timed_memoized
 from flask_jwt_extended import jwt_required, current_user
 from services.responsesService import ErrorResponse, SuccessResponse
 from services.money_change_service import str_price, change_price
@@ -18,10 +19,15 @@ from services.clientService.products_service import request_products_by_request
 # BLUEPRINTS
 products_bp = Blueprint('products_bp', __name__)
 
+CouponHeaderKey = "Vip-Cuopon"
+CouponCookieKey = "multiventas-vip-coupon"
 
 @products_bp.before_request
 def users_before_request():
-    g.coupon = Coupon.query.get( request.headers.get("Vip-Cuopon", ""))
+    header_coupon = request.headers.get(CouponHeaderKey, None)
+    cookie_coupon = request.cookies.get(CouponCookieKey, None)
+
+    g.coupon = Coupon.query.get(header_coupon or cookie_coupon )
 
 def create_str_price(user=None):
     money_type=user.main_money if user else "bs"
@@ -29,22 +35,39 @@ def create_str_price(user=None):
 def create_number_price(user=None):
     money_type=user.main_money if user else "bs"
     return lambda price: change_price(price, money_type=money_type, rounded=False)
-    
-@products_bp.route('/')
-@jwt_required(optional=True)
-def index():
-    categories=request.args.get("categories", "").split(",")
+
+@timed_memoized(60)
+def get_products_filter_categories(args_categories):
+    categories=args_categories.split(",")
     products_categories = ProductCategories.query.filter(ProductCategories.category_id.in_(categories)).all()
     products_ids = [p.product_id for p in products_categories if p.product_type == "product"]
     platforms_ids = [p.product_id for p in products_categories if p.product_type == "platform"]
     
-    convert_str=create_str_price(current_user)
     
     platforms_query=Platform.all_with_price()
     products_query= ProductsByRequest.query.filter(ProductsByRequest.public==1)
-    if len(request.args.get("categories", ""))>0:
+    if len(args_categories)>0:
         platforms_query = platforms_query.filter(Platform.id.in_(platforms_ids))
         products_query = products_query.filter(ProductsByRequest.id.in_(products_ids))
+    return platforms_query, products_query
+
+@products_bp.route('/')
+@jwt_required(optional=True)
+def index():
+    # categories=request.args.get("categories", "").split(",")
+    # products_categories = ProductCategories.query.filter(ProductCategories.category_id.in_(categories)).all()
+    # products_ids = [p.product_id for p in products_categories if p.product_type == "product"]
+    # platforms_ids = [p.product_id for p in products_categories if p.product_type == "platform"]
+    
+    
+    # platforms_query=Platform.all_with_price()
+    # products_query= ProductsByRequest.query.filter(ProductsByRequest.public==1)
+    # if len(request.args.get("categories", ""))>0:
+    #     platforms_query = platforms_query.filter(Platform.id.in_(platforms_ids))
+    #     products_query = products_query.filter(ProductsByRequest.id.in_(products_ids))
+    platforms_query, products_query = get_products_filter_categories(request.args.get("categories", ""))
+    
+    convert_str=create_str_price(current_user)
 
     platforms_unique_id = set()
 
@@ -61,10 +84,11 @@ def index():
             ret["all_products"].append(product_format_json(product, price=price))
         except:
             prices = product.price[0] if product.price_is_list() else product.price
-            print(f"{product.title_slug}, {prices}".center(150, "*"))
-    return ret
+    res = jsonify(ret)
+    return res
 
 @products_bp.route('/categories/')
+@timed_memoized(60)
 def categories():
     return {
         "categories":CategorySchema(many=True).dump(Category.query.all())
@@ -86,11 +110,8 @@ def account_json(account, money_type, user=None, coupon:Coupon=None):
     if coupon and coupon.verify_resource(account.coupon_resource(coupon.level)):
         response["price"] = streaming_account_final_price(account, g.today, is_afiliated, convert_str=create_str_price(current_user), coupon=coupon)
         response["old_price"] = streaming_account_final_price(account, g.today, is_afiliated, convert_str=create_str_price(current_user))
-        # response["price"] = User.str_price(user, account.final_price(user=user, coupon=g.coupon))
-        # response["old_price"] = User.str_price(user, account.final_price(user=user))
     else:
         response["price"] = streaming_account_final_price(account, g.today, is_afiliated, convert_str=create_str_price(current_user))
-        # response["price"] = User.str_price(user, account.final_price(user=user))
     return response
 
 @products_bp.route("/platform/<platform_id>/")
@@ -188,9 +209,12 @@ def buy(option):
         else: return ErrorResponse(400, "Este producto sobrepasa tu presupuesto por favor recarga")
 
 
+@products_bp.route("/check-coupon/")
 @products_bp.route("/check-coupon/<coupon_code>/")
 @jwt_required()
-def check_coupon(coupon_code):
+def check_coupon(coupon_code=None):
+    if not coupon_code:
+        coupon_code = request.args.get("coupon")
     coupon = Coupon.query.get(coupon_code) 
     if not coupon:
         return {
@@ -207,28 +231,38 @@ def check_coupon(coupon_code):
             "is_valid_coupon": False,
             "msg":"Ya haz usado muchas veces este cupón"
         }
-    return {
+    response = jsonify({
         "is_valid_coupon": True,
         "msg":"Cupón aplicado"
-    }
+
+    })
+    response.set_cookie(CouponCookieKey, coupon_code, max_age=60*5, httponly=True, samesite="none", secure=True)
+    return response
+
+@timed_memoized(3600)
+def get_google_drive_categories():
+    schema = GoogleDriveCategoriesSchema(exclude=("products", ), many=True)
+    return schema.dump(GoogleDriveCategories.query)
 
 @products_bp.route("/platinum-categories/")
 @products_bp.route("/platinum-category/")
 def platinum_categories():
-    schema = GoogleDriveCategoriesSchema(exclude=("products", ), many=True)
-    return schema.dump(GoogleDriveCategories.query)
+    return get_google_drive_categories()
 
-@products_bp.route("/platinum-product/")
-@products_bp.route("/platinum-products/")
-@products_bp.route("/platinum-product/<category_id>/")
-@products_bp.route("/platinum-products/<category_id>/")
-def platinum_product(category_id = None):
+@timed_memoized(3600)
+def get_google_drive_products(category_id):
     schema = GoogleDriveProductSchema(many=True)
     query = GoogleDriveProduct.query
     category = GoogleDriveCategories.query.get(category_id)
     if category:
         query = category.products
     return schema.dump(query)
+@products_bp.route("/platinum-product/")
+@products_bp.route("/platinum-products/")
+@products_bp.route("/platinum-product/<category_id>/")
+@products_bp.route("/platinum-products/<category_id>/")
+def platinum_product(category_id = None):
+    return get_google_drive_products(category_id)
 
 # def deleteNotusage():
 #     img_path = []

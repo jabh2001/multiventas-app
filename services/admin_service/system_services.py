@@ -1,7 +1,7 @@
 from flask import Response
 from libs.models import Category, ProductCategories, Platform, ProductsByRequest, Coupon, UserProducts, CompleteAccountRequest, PagoMovilRequest, RechargeRequest, DocumentRequest, GoogleDriveProduct, PlatinumMembers, db
-from libs.schemas import CouponSchema
-from services.general_service import save_file
+from libs.schemas import CouponSchema, GoogleDriveProductSchema
+from services.general_service import save_file, delete_file
 from openpyxl import Workbook
 import io
 
@@ -125,6 +125,21 @@ def create_google_drive_product(form, file):
         url_redirect=url_redirect,
         product_type=product_type,
     )
+
+def edit_google_drive_product(product:GoogleDriveProduct, form, file):
+    schema = GoogleDriveProductSchema(exclude=["id", "file_path"])
+    file_path = product.file_path
+    if file:
+        delete_file(product.file_path)
+        file_path = save_file(file)
+
+    data = {
+        "title": form.get("title") or product.title,
+        "url_redirect": form.get("url_redirect") or product.url_redirect,
+        "product_type": form.get("product_type") or product.product_type,
+        "file_path": file_path
+    }
+    schema.load(data, instance=product, partial=True)
 
 def create_lottery_tickets_to_xlsx(query):
     

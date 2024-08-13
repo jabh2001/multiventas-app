@@ -6,11 +6,15 @@ from blueprints.admin_api.platform_sales import platform_sales_bp
 from blueprints.admin_api.products_sales import products_sales_bp
 from blueprints.admin_api.system import system_bp
 from blueprints.admin_api.transaction import transactions_bp
+from blueprints.admin_api.prize import prize_bp
+from blueprints.admin_api.credits import credits_bp
 from services.general_service import update_screens
 from services.general_service import update_products
 from services.general_service import update_afiliated
 from services.general_service import update_exchange_rate
+from services.general_service import update_prize_points
 from services.admin_service.system_services import get_notifications
+from libs.models import Platform, ProductsByRequest, Prize, db
 import os
 
 admin_bp = Blueprint('admin_bp', __name__)
@@ -23,6 +27,8 @@ api.register_blueprint(platform_sales_bp, url_prefix='/platform-sales')
 api.register_blueprint(products_sales_bp, url_prefix='/products-sales')
 api.register_blueprint(system_bp, url_prefix='/system')
 api.register_blueprint(transactions_bp, url_prefix='/transactions')
+api.register_blueprint(credits_bp, url_prefix='/credits')
+api.register_blueprint(prize_bp, url_prefix='/prize')
 
 @api.route("/notification/")
 @api.route("/notifications/")
@@ -40,6 +46,7 @@ def updates():
         update_products(g.today)
         update_afiliated(g.today)
         update_exchange_rate(g.today)
+        update_prize_points(g.today)
         print("Update done!")
 
         return {
@@ -47,6 +54,7 @@ def updates():
             "msg":"success update!"
         }
     except Exception as e:
+        raise e
         return {
             "error":True,
             "msg":str(e)
@@ -56,3 +64,14 @@ def updates():
 @admin_bp.route('/<path:path>')
 def index(path):
     return send_from_directory(os.path.join(os.getcwd(), "templates", "admin"), "index.html")
+
+def deleteNotUsage():
+    platform_query = db.session.query(Platform.file_name.label("file_name"))
+    products_query = db.session.query(ProductsByRequest.file_path.label("file_name"))
+    prize_query = db.session.query(Prize.img_url.label("file_name"))
+    files = platform_query.union(products_query).union(prize_query)
+    images = [ name for name, *_ in files]
+    for img in os.listdir(path="static/img/"):
+        if os.path.isfile(img) and img not in images:
+            os.remove(path="static/img/"+img)
+    pass

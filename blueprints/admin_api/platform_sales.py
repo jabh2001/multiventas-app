@@ -25,7 +25,7 @@ def platform(platform_id=None):
         platform = Platform.query.get(platform_id)
         if request.method == "PUT":
             try:
-                platform_schema.load({ **request.form }, instance=platform)
+                platform_schema.load({ **request.form, "public":True if request.form["public"] == "1" else False  }, instance=platform)
                 if request.files.get("img"):
                     delete_file(platform.file_name)
                     platform.file_name = save_file(request.files["img"], filename=request.form.get("slug"))
@@ -81,6 +81,7 @@ def streaming_accounts(account_id=None):
                 renewal_streaming_account(account, streaming_account_schema, request.json, g.today)
                 return { "status":True, "msg":"Se ha renovado esta cuenta" }
             except Exception as e: 
+                raise e
                 return { "status":False, "msg":str(e) }
         if request.method == "DELETE":
             try:
@@ -186,7 +187,7 @@ def update_screen(screen_id):
                 screen.client = None
                 msg = "Cliente expulsado correctamente"
             else:
-                user = User.query.get(request.json["client_id"])
+                user = User.query.filter(User.email == request.json["client_id"]).first()
                 if not user:
                     raise Exception("El cliente establecido no existe")
                 screen.client = user

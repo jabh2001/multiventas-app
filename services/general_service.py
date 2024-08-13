@@ -1,7 +1,8 @@
-from libs.models import StreamingAccount, Platform, Notifications, User, Screen, ExpiredAccount, Afiliated, UserProducts, ProductsByRequest, ExchangeRate, db
+from libs.models import StreamingAccount, Platform, Notifications, User, Screen, ExpiredAccount, Afiliated, UserProducts, ProductsByRequest, ExchangeRate, PrizeWallet, PrizeWalletHistory, db
 from services.random_password import generate_password as gen_pws
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
+from libs.channel import channel
 import os
 import ssl
 import requests
@@ -24,11 +25,14 @@ def notifify_users_of_accounts(account, content, today):
             notified.add(client_id)
     db.session.add_all(notify)
     db.session.commit()
+    for client_id in notified:
+        channel.notify("1", "increment-notification", client_id)
 
 def notify_user(user:User, today, content):
     notification = Notifications(user=user, date=today, content=content, showed=0)
     db.session.add(notification)
     db.session.commit()
+    channel.notify("1", "increment-notification", user.id)
 
 # def notifyUsers(self, users, content):
 #     notifications = []
@@ -211,3 +215,23 @@ def create_affiliation_gift_code(all_gift_codes:list):
         if not code in all_codes:
             break
     return code
+
+def create_affiliations_gift_code(all_gift_codes:list, amount=1) -> set:
+    all_codes = set([ inst.code for inst in all_gift_codes])
+    code_list = set()
+    i=0
+    while i < amount:
+        code = gen_pws(18)
+        if not code in all_codes and not code in code_list:
+            code_list.add(code)
+            i += 1
+    return code_list
+
+def update_prize_points(today):
+    if today.day == 1:
+        prize_wallets = []
+        for wallet in PrizeWallet.query.filter(PrizeWallet.points > 0):
+            prize_wallets.append(PrizeWalletHistory( wallet_id=wallet.id, points=wallet.points))
+            wallet.points=0
+        db.session.add_all(prize_wallets)
+        db.session.commit()

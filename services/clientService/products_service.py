@@ -37,7 +37,9 @@ def final_price_list(product_by_request, is_afiliated=False, show_afiliated_pric
     if price_is_list:
         retPrice = []
         for plan in product_by_request.price:
-            price = plan["price"] if not is_afiliated else plan["afiliated_price"]
+            normal_price = plan["price"] or 1000
+            afiliated_price = plan["afiliated_price"] or normal_price
+            price = normal_price if not is_afiliated else afiliated_price
             old_price=False
             if verify_resource:
                 old_price = parser_price(price)
@@ -184,6 +186,8 @@ def get_available_screen_of_account(account:StreamingAccount):
 #-------------------------------------------------- BUY SERVICES --------------------------------------------------#
 # def buy_screen(account, today, user, wallet = None, coupon:"Coupon"=None):
 def buy_screen(account, today, user:User, is_afiliated:bool=False, coupon:Coupon=None):
+    if not account.platform.public:
+        return ErrorResponse(401, "Ventas cerrada")
     screen = get_available_screen_of_account(account)
     if screen:
         not_change_final_price = streaming_account_final_price(account=account, today=today, is_afiliated=is_afiliated, coupon=coupon)
@@ -222,6 +226,8 @@ def buy_screen(account, today, user:User, is_afiliated:bool=False, coupon:Coupon
     else: return False
 
 def request_complete_account(platform, today, user:User, is_afiliated:bool=False, coupon:Coupon=None, account_type = "month"):
+        if not platform.public:
+            return ErrorResponse(401, "Ventas cerrada")
         wallet = user.wallet
         final_price = platform_final_price(platform=platform, account_type=account_type, is_afiliated=is_afiliated, coupon=coupon)
         final_price = change_price(final_price, user.main_money, rounded=False)

@@ -1,5 +1,7 @@
 from libs.models import RechargeRequest, RechargeAlerts, User, Wallet, PaymentMethod, PagoMovilRequest, db
-from libs.schemas import RechargeRequestSchema, UserSchema, PaymentMethodSchema, PagoMovilRequestSchema, db
+from libs.schemas import RechargeRequestSchema, UserSchema, PaymentMethodSchema, PagoMovilRequestSchema, WalletSchema
+from libs.channel import channel
+import json
 
 def get_transfers():
     # subquery = db.session.query(db.func.count(RechargeAlerts.id)).select_from(RechargeAlerts).filter(RechargeAlerts.last == RechargeRequest.id).subquery()
@@ -60,6 +62,8 @@ def approve_recharge(recharge:RechargeRequest, payment_method:PaymentMethod, wal
 
         db.session.add_all([wallet, recharge])
         db.session.commit()
+        schema = WalletSchema(exclude=("id",))
+        channel.notify(schema.dumps(wallet), "wallet-change", wallet.user_id)
         return {
             "status":True,
             "msg":'Tu solicitud por ' + payment_method.money_type + '. ' + str(recharge.amount) + ' fue aceptada'

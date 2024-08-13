@@ -1,8 +1,9 @@
-from flask import Blueprint, request
+from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, current_user
 from libs.models import Notifications, BuyHistory, RechargeRequest, db
-from libs.schemas import UserSchema, NotificationsSchema, BuyHistorySchema, RechargeRequestSchema
+from libs.schemas import UserSchema, WalletSchema, NotificationsSchema, BuyHistorySchema, RechargeRequestSchema
 from services.responsesService import SuccessResponse, ErrorResponse
+from services.clientService.profile_service import dict_of_user_data
 
 
 # BLUEPRINTS
@@ -24,6 +25,11 @@ def utilities_JSON(history):
         "money_type":history.reference,
         "description":history.status.replace("_", " ").capitalize()
     }
+
+@profile_bp.route("/")
+@jwt_required()
+def index():
+    return jsonify(dict_of_user_data(current_user))
 
 @profile_bp.route("/movements/")
 @jwt_required()

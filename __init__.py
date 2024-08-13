@@ -13,7 +13,7 @@ MYSQL_HOST = os.getenv("MYSQL_HOST")
 MYSQL_USER = os.getenv("MYSQL_USER")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
 MYSQL_DB = os.getenv("MYSQL_DB")
-CORS_ORIGINS = '*'
+CORS_ORIGINS = ["http://localhost:5173", "http://localhost:5174", "http://localhost:19006"]
 MAIL_SERVER=os.getenv("MAIL_SERVER")
 MAIL_PORT=os.getenv("MAIL_PORT")
 MAIL_USE_TLS=False
@@ -29,6 +29,11 @@ def create_app():
         "SECRET_KEY": SECRET_KEY,
         "JWT_SECRET_KEY": JWT_SECRET_KEY,
         "JWT_ACCESS_TOKEN_EXPIRES": False,
+        "JWT_TOKEN_LOCATION": ["headers", "cookies"],
+        "JWT_COOKIE_SAMESITE": "none",
+        "JWT_COOKIE_SECURE": "true",
+        "JWT_COOKIE_DOMAIN": "127.0.0.1",
+        "JWT_COOKIE_CSRF_PROTECT": False,
         "CORS_ORIGINS": CORS_ORIGINS,
         "TEMPLATES_PATH": "../templates/",
         "TZ_INFO": pytz.timezone('America/Caracas'),

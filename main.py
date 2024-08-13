@@ -17,7 +17,7 @@ app = create_app()
 with app.app_context():
     db = init_DB(app)
     ma = init_schemas(app)
-    CORS(app)
+    CORS(app, supports_credentials=True)
     jwt = create_jwt(app)
     mail = init_mail(app)
 
