@@ -8,8 +8,8 @@ prod_env
 run_dev.bat
 run_server.bat
 run_waitress.py
-static/
-assets/
+static/*
+assets/*
 
 
 # Editor directories and files
